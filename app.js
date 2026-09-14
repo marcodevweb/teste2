@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const postsContainer = document.getElementById('posts-container');
     const modal = document.getElementById('media-modal');
     const modalContent = document.getElementById('modal-content-container');
@@ -10,62 +10,45 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
     }
 
-    // Filter out files that are not media (optional, based on extension)
+    // Filter static files
     const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.mp4', '.webm', '.jfif'];
     let files = mediaFiles.filter(f => validExtensions.includes(f.Extension.toLowerCase()));
-    
-    // Sort randomly to mix photos and videos
     files.sort(() => Math.random() - 0.5);
 
     let currentIndex = 0;
     const postsPerLoad = 10;
     let allPosts = [];
 
-    // --- Abre o mesmo banco usado pelo admin.js (AnnaDB) ---
-    const dbRequest = indexedDB.open('AnnaDB', 1);
-
-    dbRequest.onupgradeneeded = function(event) {
-        const db = event.target.result;
-        if (!db.objectStoreNames.contains('posts')) {
-            db.createObjectStore('posts', { keyPath: 'id', autoIncrement: true });
+    // --- Busca posts do Firebase Realtime Database via REST ---
+    try {
+        const res = await fetch(`${FIREBASE_DB_URL}/posts.json`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data && typeof data === 'object') {
+                const fbPosts = Object.entries(data).map(([key, val]) => ({
+                    ...val,
+                    fbKey: key,
+                    isLocal: true,
+                    mediaData: val.mediaUrl  // compatibilidade com createPostElement
+                }));
+                fbPosts.sort((a, b) => b.timestamp - a.timestamp);
+                allPosts = [
+                    ...fbPosts,
+                    ...files.map(f => ({ ...f, isLocal: false }))
+                ];
+            }
         }
-    };
-
-    dbRequest.onerror = function() {
-        initFeed([]);
-    };
-
-    dbRequest.onsuccess = function(event) {
-        const db = event.target.result;
-        const tx = db.transaction(['posts'], 'readonly');
-        const store = tx.objectStore('posts');
-        const getAll = store.getAll();
-
-        getAll.onsuccess = function() {
-            const dbPosts = (getAll.result || []).map(post => {
-                // Converte o Blob para um objectURL (zero base64, zero crash)
-                const url = URL.createObjectURL(post.blob);
-                return { ...post, mediaData: url, isLocal: true };
-            });
-            // Mais recentes primeiro
-            dbPosts.sort((a, b) => b.timestamp - a.timestamp);
-            initFeed(dbPosts);
-        };
-
-        getAll.onerror = function() {
-            initFeed([]);
-        };
-    };
-
-    function initFeed(localPosts) {
-        allPosts = [
-            ...localPosts,
-            ...files.map(f => ({ ...f, isLocal: false }))
-        ];
-        console.log('Posts no feed:', allPosts.length);
-        loadMorePosts();
+    } catch (e) {
+        console.error('Erro ao carregar posts do Firebase:', e);
     }
 
+    // Se não veio nada do Firebase, usa só os estáticos
+    if (allPosts.length === 0) {
+        allPosts = files.map(f => ({ ...f, isLocal: false }));
+    }
+
+    console.log('Posts no feed:', allPosts.length);
+    loadMorePosts();
 
     function createPostElement(file) {
         const post = document.createElement('div');
@@ -75,22 +58,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (file.isLocal) {
             isVideo = file.isVideo;
-            mediaPath = file.mediaData;
+            mediaPath = file.mediaData;  // URL do Cloudinary
             captionText = file.caption || '';
-            const likesCount = file.likes || 0;
-            likesText = `${likesCount} curtidas`;
+            likesText = `${file.likes || 0} curtidas`;
         } else {
             isVideo = ['.mp4', '.webm'].includes(file.Extension.toLowerCase());
             mediaPath = `ANNA conteudos/${encodeURIComponent(file.Name)}`;
             captionText = file.Name.replace(file.Extension, '');
-            
-            const randomLikes = Math.floor(Math.random() * 49) + 1;
-            likesText = `${randomLikes},${Math.floor(Math.random() * 9)}${Math.floor(Math.random() * 9)} curtidas`;
+            const r = Math.floor(Math.random() * 49) + 1;
+            likesText = `${r},${Math.floor(Math.random() * 9)}${Math.floor(Math.random() * 9)} curtidas`;
         }
 
-        const mediaHtml = isVideo 
+        const mediaHtml = isVideo
             ? `<video class="post-media" src="${mediaPath}" controls loop></video>`
-            : `<img class="post-media" src="${mediaPath}" alt="Post Content" loading="lazy">`;
+            : `<img class="post-media" src="${mediaPath}" alt="Post" loading="lazy">`;
 
         post.innerHTML = `
             <div class="post-header">
@@ -113,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `;
 
-        // Like interaction
+        // Like
         const likeBtn = post.querySelector('.like-btn');
         const mediaContent = post.querySelector('.post-content');
 
@@ -128,31 +109,21 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         likeBtn.addEventListener('click', toggleLike);
-        
-        // Double click to like
+
         mediaContent.addEventListener('dblclick', (e) => {
             e.preventDefault();
-            if (likeBtn.classList.contains('fa-regular')) {
-                toggleLike();
-            }
+            if (likeBtn.classList.contains('fa-regular')) toggleLike();
         });
 
-        // Click to open modal
         mediaContent.addEventListener('click', (e) => {
-            // Don't open modal if clicking on video controls
             if (e.target.tagName.toLowerCase() === 'video') return;
-            
-            const path = mediaContent.getAttribute('data-path');
-            const type = mediaContent.getAttribute('data-type');
-            
-            openModal(path, type);
+            openModal(mediaPath, isVideo ? 'video' : 'image');
         });
 
         return post;
     }
 
     function loadMorePosts() {
-        const fragment = document.createDocumentFragment();
         const end = Math.min(currentIndex + postsPerLoad, allPosts.length);
 
         if (allPosts.length === 0 && currentIndex === 0) {
@@ -168,30 +139,25 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        const fragment = document.createDocumentFragment();
         try {
             for (let i = currentIndex; i < end; i++) {
-                if (allPosts[i]) {
-                    fragment.appendChild(createPostElement(allPosts[i]));
-                }
+                if (allPosts[i]) fragment.appendChild(createPostElement(allPosts[i]));
             }
             postsContainer.appendChild(fragment);
         } catch (e) {
-            console.error("Error rendering posts", e);
+            console.error('Erro ao renderizar posts:', e);
         }
-        
-        currentIndex = end;
 
-        if (currentIndex >= allPosts.length) {
-            const loadingMore = document.querySelector('.loading-more');
-            if (loadingMore) {
-                loadingMore.style.display = 'none';
-            }
+        currentIndex = end;
+        const loadingMore = document.querySelector('.loading-more');
+        if (loadingMore && currentIndex >= allPosts.length) {
+            loadingMore.style.display = 'none';
         }
     }
 
-    // Modal logic
     function openModal(path, type) {
-        modalContent.innerHTML = type === 'video' 
+        modalContent.innerHTML = type === 'video'
             ? `<video src="${path}" controls autoplay loop></video>`
             : `<img src="${path}" alt="Expanded Media">`;
         modal.classList.add('active');
@@ -199,7 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     closeModal.addEventListener('click', () => {
         modal.classList.remove('active');
-        modalContent.innerHTML = ''; // Stop video
+        modalContent.innerHTML = '';
     });
 
     modal.addEventListener('click', (e) => {
@@ -209,12 +175,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Infinite Scroll
     window.addEventListener('scroll', () => {
         const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
         if (scrollTop + clientHeight >= scrollHeight - 500 && currentIndex < allPosts.length) {
             loadMorePosts();
         }
     });
-
 });

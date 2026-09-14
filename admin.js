@@ -5,39 +5,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const videoPreview = document.getElementById('video-preview');
     const placeholder = document.querySelector('.upload-placeholder');
     const successMessage = document.getElementById('success-message');
+    const submitBtn = form.querySelector('.submit-btn');
 
     let selectedFile = null;
     let isVideo = false;
     let previewObjectUrl = null;
 
-    // --- Inicializa IndexedDB ---
-    let db;
-    const dbRequest = indexedDB.open('AnnaDB', 1);
-
-    dbRequest.onupgradeneeded = function(event) {
-        db = event.target.result;
-        if (!db.objectStoreNames.contains('posts')) {
-            db.createObjectStore('posts', { keyPath: 'id', autoIncrement: true });
-        }
-    };
-
-    dbRequest.onsuccess = function(event) {
-        db = event.target.result;
-    };
-
-    dbRequest.onerror = function(event) {
-        console.error('Erro ao abrir IndexedDB:', event.target.error);
-    };
-
-    // --- Preview sem base64: usa createObjectURL (zero consumo de RAM extra) ---
+    // --- Preview com createObjectURL (sem base64, sem crash) ---
     mediaInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
 
-        // Libera URL anterior
-        if (previewObjectUrl) {
-            URL.revokeObjectURL(previewObjectUrl);
-        }
+        if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
 
         selectedFile = file;
         isVideo = file.type.startsWith('video/');
@@ -56,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    form.addEventListener('submit', function(e) {
+    form.addEventListener('submit', async function(e) {
         e.preventDefault();
 
         if (!selectedFile) {
@@ -64,34 +43,41 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (!db) {
-            alert('Banco de dados ainda iniciando. Aguarde um segundo e tente novamente.');
+        // Verifica se Cloudinary está configurado
+        if (CLOUDINARY_CLOUD_NAME === 'SEU_CLOUD_NAME_AQUI') {
+            alert('Configure o Cloudinary no arquivo firebase-config.js primeiro!\nAcesse cloudinary.com e crie uma conta gratuita.');
             return;
         }
 
-        const caption = document.getElementById('caption').value;
-        const likes = parseInt(document.getElementById('likes').value || '0', 10);
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Enviando mídia... (pode demorar)';
 
-        // Salva o Blob (arquivo bruto) diretamente — sem base64, sem crash de memória
-        const newPost = {
-            blob: selectedFile,        // Blob nativo: muito mais eficiente
-            mimeType: selectedFile.type,
-            fileName: selectedFile.name,
-            isVideo: isVideo,
-            caption: caption,
-            likes: likes,
-            timestamp: Date.now()
-        };
+        try {
+            // 1. Upload do arquivo para o Cloudinary
+            const mediaUrl = await uploadToCloudinary(selectedFile);
 
-        const tx = db.transaction(['posts'], 'readwrite');
-        const store = tx.objectStore('posts');
-        const addReq = store.add(newPost);
+            submitBtn.textContent = 'Salvando postagem...';
 
-        addReq.onsuccess = function() {
+            // 2. Salva os metadados no Firebase Realtime Database
+            const caption = document.getElementById('caption').value;
+            const likes = parseInt(document.getElementById('likes').value || '0', 10);
+
+            const newPost = {
+                mediaUrl: mediaUrl,
+                isVideo: isVideo,
+                fileName: selectedFile.name,
+                caption: caption,
+                likes: likes,
+                timestamp: Date.now()
+            };
+
+            await savePostToFirebase(newPost);
+
+            // Sucesso!
             successMessage.classList.remove('hidden');
-            setTimeout(() => successMessage.classList.add('hidden'), 3000);
+            setTimeout(() => successMessage.classList.add('hidden'), 4000);
 
-            // Reset
+            // Reset form
             form.reset();
             selectedFile = null;
             placeholder.classList.remove('hidden');
@@ -99,14 +85,43 @@ document.addEventListener('DOMContentLoaded', () => {
             videoPreview.classList.add('hidden');
             mediaPreview.src = '';
             videoPreview.src = '';
-            if (previewObjectUrl) {
-                URL.revokeObjectURL(previewObjectUrl);
-                previewObjectUrl = null;
-            }
-        };
+            if (previewObjectUrl) { URL.revokeObjectURL(previewObjectUrl); previewObjectUrl = null; }
 
-        addReq.onerror = function(event) {
-            alert('Erro ao salvar: ' + event.target.error);
-        };
+        } catch (err) {
+            alert('Erro ao publicar: ' + err.message);
+            console.error(err);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Publicar no Site';
+        }
     });
+
+    // --- Upload para o Cloudinary via REST (sem SDK, sem npm) ---
+    async function uploadToCloudinary(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+        const res = await fetch(
+            `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/upload`,
+            { method: 'POST', body: formData }
+        );
+
+        if (!res.ok) throw new Error('Falha no upload para o Cloudinary.');
+        const data = await res.json();
+        if (data.error) throw new Error('Cloudinary: ' + data.error.message);
+        return data.secure_url;
+    }
+
+    // --- Salva post no Firebase Realtime Database via REST (sem SDK, sem npm) ---
+    async function savePostToFirebase(post) {
+        const res = await fetch(`${FIREBASE_DB_URL}/posts.json`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(post)
+        });
+
+        if (!res.ok) throw new Error('Falha ao salvar no Firebase.');
+        return res.json();
+    }
 });
