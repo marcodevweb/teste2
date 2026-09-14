@@ -1,0 +1,76 @@
+<!DOCTYPE html><html lang="pt-BR"><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conteúdo Exclusivo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/UQdzOSWMJhQW.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <div class="logo">
+                <img src="image.png" alt="Logo" class="logo-img">
+            </div>
+            <ul class="nav-links">
+                <li class="active"><a href="#"><i class="fa-solid fa-house"></i> Home</a></li>
+                <li><a href="chat.html"><i class="fa-regular fa-paper-plane"></i> Mensagens</a></li>
+            </ul>
+        </nav>
+
+        <!-- Main Feed -->
+        <main class="feed" id="feed">
+            <header class="mobile-header">
+                <img src="image.png" alt="Logo" class="logo-img">
+            </header>
+
+            <!-- Posts container -->
+            <div id="posts-container">
+                <!-- Posts will be injected here by app.js -->
+            </div>
+            
+            <div class="loading-more">
+                <i class="fa-solid fa-spinner fa-spin"></i> Carregando mais...
+            </div>
+        </main>
+        
+        <!-- Suggestions Sidebar (Desktop only) -->
+        <aside class="suggestions">
+            <div class="profile-card">
+                <img src="SaveInta.com_688760702_18098701861922501_8266598103887159661_n.jpg" alt="Profile" class="profile-pic">
+                <div class="profile-info">
+                    <h2>Anna Delarosa</h2>
+        
+                </div>
+            </div>
+            <div class="suggestions-list">                <!-- Add some mock suggestions here if needed -->
+            </div>
+            <footer class="footer-links">
+                <p>© 2026 Privacy</p>
+            </footer>
+        </aside>
+
+        <!-- Bottom Navigation for Mobile -->
+        <nav class="bottom-nav">
+            <a href="#" class="active"><i class="fa-solid fa-house"></i></a>
+            <a href="#"><i class="fa-solid fa-magnifying-glass"></i></a>
+            <a href="chat.html"><i class="fa-regular fa-paper-plane"></i></a>
+            <a href="#"><i class="fa-regular fa-heart"></i></a>
+            <a href="#"><img src="SaveInta.com_688760702_18098701861922501_8266598103887159661_n.jpg" alt="Profile" class="nav-profile-pic"></a>
+        </nav>
+    </div>
+
+    <!-- Media Modal -->
+    <div id="media-modal" class="modal">
+        <span class="close-modal">×</span>
+        <div class="modal-content" id="modal-content-container"></div>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+
+
+</body></html>

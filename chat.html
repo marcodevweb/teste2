@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat com Anna Delarosa</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/UQdzOSWMJhQW.css">
+    <link rel="stylesheet" href="chat.css">
+</head>
+<body>
+    <div class="chat-container">
+        <!-- Header -->
+        <header class="chat-header">
+            <a href="index.html" class="back-btn"><i class="fa-solid fa-arrow-left"></i></a>
+            <div class="user-info">
+                <h2>Anna Delarosa</h2>
+                <span class="status">Visto por último agora mesmo <i class="fa-solid fa-star"></i> <i class="fa-regular fa-bell"></i></span>
+            </div>
+            <div class="header-actions">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <i class="fa-solid fa-ellipsis"></i>
+            </div>
+        </header>
+
+        <!-- Messages Area -->
+        <main class="chat-messages" id="chat-messages">
+            <!-- Simulated Anna messages -->
+            <div class="message-wrapper receiver">
+                <img src="SaveInta.com_688760702_18098701861922501_8266598103887159661_n.jpg" alt="Anna" class="chat-avatar">
+                <div class="message-content">
+                    <p>Oii, que bom te ver por aqui! 🥰</p>
+                    <span class="timestamp">4:52 pm</span>
+                </div>
+            </div>
+
+            <!-- Messages will be injected here -->
+        </main>
+
+        <div class="tips-notice">
+            <p>Mensagens com gorjetas aparecem no topo da caixa de entrada <i class="fa-solid fa-xmark"></i></p>
+        </div>
+
+        <!-- Input Area -->
+        <footer class="chat-input-area">
+            <div class="input-icons-left">
+                <i class="fa-regular fa-image"></i>
+                <i class="fa-solid fa-dollar-sign circle-icon"></i>
+            </div>
+            <input type="text" id="message-input" placeholder="Digite uma mensagem...">
+            <button id="send-btn" class="send-btn"><i class="fa-solid fa-paper-plane"></i></button>
+        </footer>
+    </div>
+
+    <script src="chat.js"></script>
+</body>
+</html>

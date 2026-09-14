@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Administração</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <a href="index.html" class="back-link">&larr; Voltar para o Site</a>
+            <h1>Nova Postagem</h1>
+        </header>
+
+        <form id="post-form" class="post-form">
+            <div class="form-group">
+                <label for="media">Foto ou Vídeo</label>
+                <div class="file-upload" id="file-upload-area">
+                    <input type="file" id="media" accept="image/*,video/*" required>
+                    <div class="upload-placeholder">
+                        <span>Clique para escolher um arquivo</span>
+                        <small>Sem limite de tamanho</small>
+                    </div>
+                    <img id="media-preview" class="hidden" alt="Preview">
+                    <video id="video-preview" class="hidden" controls></video>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="caption">Legenda (opcional)</label>
+                <textarea id="caption" rows="4" placeholder="Escreva algo..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="likes">Curtidas Iniciais</label>
+                <input type="number" id="likes" min="0" value="0">
+            </div>
+
+            <button type="submit" class="submit-btn">Publicar no Site</button>
+        </form>
+
+        <div id="success-message" class="hidden">
+            Postagem publicada com sucesso!
+        </div>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>
