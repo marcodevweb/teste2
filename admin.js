@@ -96,20 +96,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- Upload para o Cloudinary via REST (sem SDK, sem npm) ---
+    // --- Upload para o Cloudinary via REST ---
     async function uploadToCloudinary(file) {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
 
-        const res = await fetch(
-            `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`,
-            { method: 'POST', body: formData }
-        );
+        // Usa endpoint específico por tipo de arquivo
+        const resourceType = file.type.startsWith('video/') ? 'video' : 'image';
+        const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
+        
+        console.log('Uploading to:', uploadUrl);
+        console.log('Cloud name:', CLOUDINARY_CLOUD_NAME);
+        console.log('Preset:', CLOUDINARY_UPLOAD_PRESET);
+        console.log('File type:', file.type, '| Size:', (file.size / 1024 / 1024).toFixed(2) + 'MB');
 
-        if (!res.ok) throw new Error('Falha no upload para o Cloudinary.');
+        let res;
+        try {
+            res = await fetch(uploadUrl, { method: 'POST', body: formData });
+        } catch (networkErr) {
+            throw new Error(`Falha de rede ao conectar ao Cloudinary: ${networkErr.message}. Verifique o Cloud Name "${CLOUDINARY_CLOUD_NAME}" e o Preset "${CLOUDINARY_UPLOAD_PRESET}".`);
+        }
+
         const data = await res.json();
-        if (data.error) throw new Error('Cloudinary: ' + data.error.message);
+        console.log('Cloudinary response:', data);
+        
+        if (!res.ok || data.error) {
+            throw new Error('Cloudinary: ' + (data.error ? data.error.message : `HTTP ${res.status}`));
+        }
         return data.secure_url;
     }
 
