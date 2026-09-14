@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 multiple: false,
                 maxFiles: 1,
                 resourceType: 'auto',
+                chunkSize: 50 * 1024 * 1024,  // Divide em pedaços de 50MB — suporta arquivos de até 5GB
                 language: 'pt',
                 text: {
                     pt: {
