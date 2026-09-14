@@ -17,16 +17,15 @@
         </header>
 
         <form id="post-form" class="post-form">
+
             <div class="form-group">
-                <label for="media">Foto ou Vídeo</label>
-                <div class="file-upload" id="file-upload-area">
-                    <input type="file" id="media" accept="image/*,video/*" required>
-                    <div class="upload-placeholder">
-                        <span>Clique para escolher um arquivo</span>
+                <label>Foto ou Vídeo</label>
+                <div id="upload-area" class="file-upload" style="cursor:pointer; display:flex; align-items:center; justify-content:center; min-height:200px;">
+                    <div id="upload-placeholder" class="upload-placeholder">
+                        <span>📁 Clique para escolher foto ou vídeo</span>
                         <small>Sem limite de tamanho</small>
                     </div>
-                    <img id="media-preview" class="hidden" alt="Preview">
-                    <video id="video-preview" class="hidden" controls></video>
+                    <div id="upload-preview" style="display:none; width:100%; text-align:center;"></div>
                 </div>
             </div>
 
@@ -40,14 +39,16 @@
                 <input type="number" id="likes" min="0" value="0">
             </div>
 
-            <button type="submit" class="submit-btn">Publicar no Site</button>
+            <button type="submit" class="submit-btn" id="submit-btn" disabled>Publicar no Site</button>
         </form>
 
         <div id="success-message" class="hidden">
-            Postagem publicada com sucesso!
+            ✅ Postagem publicada com sucesso! Atualize o site para ver.
         </div>
     </div>
 
+    <!-- Cloudinary Upload Widget (solucao oficial sem problemas de CORS) -->
+    <script src="https://upload-widget.cloudinary.com/global/all.js"></script>
     <script src="firebase-config.js"></script>
     <script src="admin.js"></script>
 </body>
