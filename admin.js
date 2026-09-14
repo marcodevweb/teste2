@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
 
         const res = await fetch(
-            `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/upload`,
+            `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`,
             { method: 'POST', body: formData }
         );
 
