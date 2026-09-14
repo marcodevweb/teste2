@@ -1,105 +1,74 @@
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('post-form');
-    const submitBtn = document.getElementById('submit-btn');
+    const mediaInput = document.getElementById('media');
+    const mediaPreview = document.getElementById('media-preview');
+    const videoPreview = document.getElementById('video-preview');
+    const placeholder = document.querySelector('.upload-placeholder');
     const successMessage = document.getElementById('success-message');
-    const uploadArea = document.getElementById('upload-area');
-    const uploadPlaceholder = document.getElementById('upload-placeholder');
-    const uploadPreview = document.getElementById('upload-preview');
+    const submitBtn = document.getElementById('submit-btn');
+    const progressContainer = document.getElementById('progress-container');
+    const progressBar = document.getElementById('progress-bar');
+    const progressLabel = document.getElementById('progress-label');
+    const progressPercent = document.getElementById('progress-percent');
 
-    let uploadedMediaUrl = null;
-    let uploadedIsVideo = false;
+    let selectedFile = null;
+    let isVideo = false;
+    let previewObjectUrl = null;
 
-    // --- Abre o Cloudinary Upload Widget ao clicar na área ---
-    uploadArea.addEventListener('click', () => {
-        if (typeof cloudinary === 'undefined') {
-            alert('Widget do Cloudinary ainda carregando. Aguarde um segundo e tente novamente.');
-            return;
+    const CHUNK_SIZE = 50 * 1024 * 1024; // 50MB por pedaço
+
+    // --- Preview sem base64 ---
+    mediaInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+
+        selectedFile = file;
+        isVideo = file.type.startsWith('video/');
+        previewObjectUrl = URL.createObjectURL(file);
+
+        placeholder.classList.add('hidden');
+
+        if (isVideo) {
+            videoPreview.src = previewObjectUrl;
+            videoPreview.classList.remove('hidden');
+            mediaPreview.classList.add('hidden');
+        } else {
+            mediaPreview.src = previewObjectUrl;
+            mediaPreview.classList.remove('hidden');
+            videoPreview.classList.add('hidden');
         }
-
-        const widget = cloudinary.createUploadWidget(
-            {
-                cloudName: CLOUDINARY_CLOUD_NAME,
-                uploadPreset: CLOUDINARY_UPLOAD_PRESET,
-                sources: ['local'],
-                multiple: false,
-                maxFiles: 1,
-                resourceType: 'auto',
-                chunkSize: 50 * 1024 * 1024,  // Divide em pedaços de 50MB — suporta arquivos de até 5GB
-                language: 'pt',
-                text: {
-                    pt: {
-                        or: 'ou',
-                        menu: { files: 'Meus Arquivos' },
-                        selection_counter: { file: 'Arquivo' },
-                        actions: {
-                            upload: 'Enviar',
-                            next: 'Próximo',
-                            back: 'Voltar',
-                            retry: 'Tentar novamente'
-                        }
-                    }
-                }
-            },
-            (error, result) => {
-                if (error) {
-                    console.error('Cloudinary widget error:', error);
-                    alert('Erro no upload: ' + (error.message || JSON.stringify(error)));
-                    return;
-                }
-
-                if (result && result.event === 'success') {
-                    const info = result.info;
-                    uploadedMediaUrl = info.secure_url;
-                    uploadedIsVideo = info.resource_type === 'video';
-
-                    // Mostra preview
-                    uploadPlaceholder.style.display = 'none';
-                    uploadPreview.style.display = 'block';
-
-                    if (uploadedIsVideo) {
-                        uploadPreview.innerHTML = `
-                            <video src="${uploadedMediaUrl}" controls style="max-width:100%; max-height:300px; border-radius:8px;"></video>
-                            <p style="color:#4caf50; margin-top:8px;">✅ Vídeo enviado com sucesso!</p>
-                        `;
-                    } else {
-                        uploadPreview.innerHTML = `
-                            <img src="${uploadedMediaUrl}" style="max-width:100%; max-height:300px; border-radius:8px; object-fit:contain;">
-                            <p style="color:#4caf50; margin-top:8px;">✅ Foto enviada com sucesso!</p>
-                        `;
-                    }
-
-                    submitBtn.disabled = false;
-                }
-            }
-        );
-
-        widget.open();
     });
 
-    // --- Publicar post no Firebase ---
     form.addEventListener('submit', async function(e) {
         e.preventDefault();
 
-        if (!uploadedMediaUrl) {
-            alert('Por favor, envie uma foto ou vídeo primeiro.');
+        if (!selectedFile) {
+            alert('Por favor, selecione uma foto ou vídeo.');
             return;
         }
 
         submitBtn.disabled = true;
-        submitBtn.textContent = 'Publicando...';
-
-        const caption = document.getElementById('caption').value;
-        const likes = parseInt(document.getElementById('likes').value || '0', 10);
-
-        const newPost = {
-            mediaUrl: uploadedMediaUrl,
-            isVideo: uploadedIsVideo,
-            caption: caption,
-            likes: likes,
-            timestamp: Date.now()
-        };
+        progressContainer.classList.remove('hidden');
+        setProgress(0, 'Iniciando upload...');
 
         try {
+            const mediaUrl = await uploadChunked(selectedFile);
+
+            setProgress(100, 'Salvando postagem...');
+
+            const caption = document.getElementById('caption').value;
+            const likes = parseInt(document.getElementById('likes').value || '0', 10);
+
+            const newPost = {
+                mediaUrl: mediaUrl,
+                isVideo: isVideo,
+                caption: caption,
+                likes: likes,
+                timestamp: Date.now()
+            };
+
             const res = await fetch(`${FIREBASE_DB_URL}/posts.json`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -107,8 +76,8 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             if (!res.ok) {
-                const errData = await res.json();
-                throw new Error(JSON.stringify(errData));
+                const errData = await res.text();
+                throw new Error('Firebase: ' + errData);
             }
 
             // Sucesso!
@@ -117,19 +86,85 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Reset
             form.reset();
-            uploadedMediaUrl = null;
-            uploadedIsVideo = false;
-            uploadPlaceholder.style.display = '';
-            uploadPreview.style.display = 'none';
-            uploadPreview.innerHTML = '';
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Publicar no Site';
+            selectedFile = null;
+            placeholder.classList.remove('hidden');
+            mediaPreview.classList.add('hidden');
+            videoPreview.classList.add('hidden');
+            if (previewObjectUrl) { URL.revokeObjectURL(previewObjectUrl); previewObjectUrl = null; }
+            progressContainer.classList.add('hidden');
 
         } catch (err) {
-            alert('Erro ao salvar no Firebase: ' + err.message);
+            alert('Erro ao publicar: ' + err.message);
             console.error(err);
+            progressContainer.classList.add('hidden');
+        } finally {
             submitBtn.disabled = false;
-            submitBtn.textContent = 'Publicar no Site';
         }
     });
+
+    // --- Chunked upload direto na API do Cloudinary ---
+    async function uploadChunked(file) {
+        const resourceType = isVideo ? 'video' : 'image';
+        const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
+        const uniqueId = generateUUID();
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+
+        let finalUrl = null;
+
+        for (let i = 0; i < totalChunks; i++) {
+            const start = i * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, file.size);
+            const chunk = file.slice(start, end);
+
+            const formData = new FormData();
+            formData.append('file', chunk, file.name);
+            formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+            const chunkLabel = totalChunks > 1
+                ? `Enviando parte ${i + 1} de ${totalChunks}...`
+                : 'Enviando arquivo...';
+            setProgress(Math.round((i / totalChunks) * 95), chunkLabel);
+
+            let res;
+            try {
+                res = await fetch(uploadUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-Unique-Upload-Id': uniqueId,
+                        'Content-Range': `bytes ${start}-${end - 1}/${file.size}`
+                    },
+                    body: formData
+                });
+            } catch (networkErr) {
+                throw new Error(`Falha de rede no chunk ${i + 1}: ${networkErr.message}`);
+            }
+
+            const data = await res.json();
+
+            if (res.status === 200) {
+                // Upload completo — último chunk retorna 200 com a URL final
+                if (!data.secure_url) throw new Error('Cloudinary não retornou URL: ' + JSON.stringify(data));
+                finalUrl = data.secure_url;
+            } else if (res.status === 206) {
+                // Chunk aceito, continua
+            } else {
+                throw new Error('Erro no Cloudinary: ' + (data.error ? data.error.message : JSON.stringify(data)));
+            }
+        }
+
+        return finalUrl;
+    }
+
+    function setProgress(percent, label) {
+        progressBar.style.width = percent + '%';
+        progressPercent.textContent = percent + '%';
+        if (label) progressLabel.textContent = label;
+    }
+
+    function generateUUID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+            const r = Math.random() * 16 | 0;
+            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+        });
+    }
 });

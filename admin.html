@@ -20,12 +20,25 @@
 
             <div class="form-group">
                 <label>Foto ou Vídeo</label>
-                <div id="upload-area" class="file-upload" style="cursor:pointer; display:flex; align-items:center; justify-content:center; min-height:200px;">
-                    <div id="upload-placeholder" class="upload-placeholder">
+                <div class="file-upload" id="file-upload-area">
+                    <input type="file" id="media" accept="image/*,video/*" required>
+                    <div class="upload-placeholder">
                         <span>📁 Clique para escolher foto ou vídeo</span>
-                        <small>Sem limite de tamanho</small>
+                        <small>Sem limite de tamanho — vídeos grandes são enviados em partes automaticamente</small>
                     </div>
-                    <div id="upload-preview" style="display:none; width:100%; text-align:center;"></div>
+                    <img id="media-preview" class="hidden" alt="Preview">
+                    <video id="video-preview" class="hidden" controls></video>
+                </div>
+
+                <!-- Barra de progresso -->
+                <div id="progress-container" class="hidden" style="margin-top:12px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                        <span id="progress-label" style="font-size:13px; color:#737373;">Enviando...</span>
+                        <span id="progress-percent" style="font-size:13px; font-weight:600; color:#ff8c00;">0%</span>
+                    </div>
+                    <div style="background:#f0f0f0; border-radius:8px; height:10px; overflow:hidden;">
+                        <div id="progress-bar" style="height:100%; width:0%; background:#ff8c00; border-radius:8px; transition:width 0.3s ease;"></div>
+                    </div>
                 </div>
             </div>
 
@@ -39,7 +52,7 @@
                 <input type="number" id="likes" min="0" value="0">
             </div>
 
-            <button type="submit" class="submit-btn" id="submit-btn" disabled>Publicar no Site</button>
+            <button type="submit" class="submit-btn" id="submit-btn">Publicar no Site</button>
         </form>
 
         <div id="success-message" class="hidden">
@@ -47,8 +60,6 @@
         </div>
     </div>
 
-    <!-- Cloudinary Upload Widget (solucao oficial sem problemas de CORS) -->
-    <script src="https://upload-widget.cloudinary.com/global/all.js"></script>
     <script src="firebase-config.js"></script>
     <script src="admin.js"></script>
 </body>
