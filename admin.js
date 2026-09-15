@@ -10,12 +10,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const progressBar = document.getElementById('progress-bar');
     const progressLabel = document.getElementById('progress-label');
     const progressPercent = document.getElementById('progress-percent');
+    const compressNote = document.getElementById('compress-note');
 
     let selectedFile = null;
     let isVideo = false;
     let previewObjectUrl = null;
 
-    const CHUNK_SIZE = 50 * 1024 * 1024; // 50MB por pedaço
+    const MAX_UPLOAD_SIZE = 95 * 1024 * 1024; // 95MB — seguro abaixo do limite Cloudinary
 
     // --- Preview sem base64 ---
     mediaInput.addEventListener('change', function(e) {
@@ -51,13 +52,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
         submitBtn.disabled = true;
         progressContainer.classList.remove('hidden');
-        setProgress(0, 'Iniciando upload...');
+
+        let fileToUpload = selectedFile;
 
         try {
-            const mediaUrl = await uploadChunked(selectedFile);
+            // --- Comprimir vídeo se for grande ---
+            if (isVideo && selectedFile.size > MAX_UPLOAD_SIZE) {
+                setProgress(5, 'Comprimindo vídeo...');
+                compressNote.style.display = 'block';
+                fileToUpload = await compressVideo(selectedFile);
+                compressNote.style.display = 'none';
+                setProgress(40, 'Compressão concluída! Enviando...');
+            } else {
+                setProgress(5, 'Preparando upload...');
+            }
 
-            setProgress(100, 'Salvando postagem...');
+            // --- Upload para o Cloudinary ---
+            const mediaUrl = await uploadToCloudinary(fileToUpload);
+            setProgress(90, 'Salvando postagem...');
 
+            // --- Salva no Firebase ---
             const caption = document.getElementById('caption').value;
             const likes = parseInt(document.getElementById('likes').value || '0', 10);
 
@@ -80,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error('Firebase: ' + errData);
             }
 
-            // Sucesso!
+            setProgress(100, 'Publicado!');
             successMessage.classList.remove('hidden');
             setTimeout(() => successMessage.classList.add('hidden'), 5000);
 
@@ -91,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
             mediaPreview.classList.add('hidden');
             videoPreview.classList.add('hidden');
             if (previewObjectUrl) { URL.revokeObjectURL(previewObjectUrl); previewObjectUrl = null; }
-            progressContainer.classList.add('hidden');
+            setTimeout(() => progressContainer.classList.add('hidden'), 2000);
 
         } catch (err) {
             alert('Erro ao publicar: ' + err.message);
@@ -102,69 +116,78 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- Chunked upload direto na API do Cloudinary ---
-    async function uploadChunked(file) {
-        const resourceType = isVideo ? 'video' : 'image';
-        const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
-        const uniqueId = generateUUID();
-        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-
-        let finalUrl = null;
-
-        for (let i = 0; i < totalChunks; i++) {
-            const start = i * CHUNK_SIZE;
-            const end = Math.min(start + CHUNK_SIZE, file.size);
-            const chunk = file.slice(start, end);
-
-            const formData = new FormData();
-            formData.append('file', chunk, file.name);
-            formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-
-            const chunkLabel = totalChunks > 1
-                ? `Enviando parte ${i + 1} de ${totalChunks}...`
-                : 'Enviando arquivo...';
-            setProgress(Math.round((i / totalChunks) * 95), chunkLabel);
-
-            let res;
-            try {
-                res = await fetch(uploadUrl, {
-                    method: 'POST',
-                    headers: {
-                        'X-Unique-Upload-Id': uniqueId,
-                        'Content-Range': `bytes ${start}-${end - 1}/${file.size}`
-                    },
-                    body: formData
-                });
-            } catch (networkErr) {
-                throw new Error(`Falha de rede no chunk ${i + 1}: ${networkErr.message}`);
-            }
-
-            const data = await res.json();
-
-            if (res.status === 200) {
-                // Upload completo — último chunk retorna 200 com a URL final
-                if (!data.secure_url) throw new Error('Cloudinary não retornou URL: ' + JSON.stringify(data));
-                finalUrl = data.secure_url;
-            } else if (res.status === 206) {
-                // Chunk aceito, continua
-            } else {
-                throw new Error('Erro no Cloudinary: ' + (data.error ? data.error.message : JSON.stringify(data)));
-            }
+    // --- Compressão de vídeo com FFmpeg.wasm ---
+    async function compressVideo(file) {
+        if (typeof FFmpeg === 'undefined') {
+            throw new Error('FFmpeg não carregou. Verifique sua conexão e tente recarregar a página.');
         }
 
-        return finalUrl;
+        const { FFmpeg: FFmpegClass } = FFmpeg;
+        const { fetchFile } = FFmpegUtil;
+
+        const ffmpeg = new FFmpegClass();
+
+        ffmpeg.on('progress', ({ progress }) => {
+            const pct = Math.round(5 + progress * 35); // de 5% a 40%
+            setProgress(pct, `Comprimindo vídeo: ${Math.round(progress * 100)}%`);
+        });
+
+        await ffmpeg.load({
+            coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
+        });
+
+        const inputName = 'input' + file.name.substring(file.name.lastIndexOf('.'));
+        const outputName = 'output.mp4';
+
+        await ffmpeg.writeFile(inputName, await fetchFile(file));
+
+        // Comprime para H.264 com qualidade CRF 28 (bom balanço tamanho/qualidade)
+        await ffmpeg.exec([
+            '-i', inputName,
+            '-c:v', 'libx264',
+            '-crf', '28',
+            '-preset', 'fast',
+            '-c:a', 'aac',
+            '-b:a', '128k',
+            '-movflags', '+faststart',
+            outputName
+        ]);
+
+        const data = await ffmpeg.readFile(outputName);
+        const compressedBlob = new Blob([data.buffer], { type: 'video/mp4' });
+
+        console.log(`Vídeo comprimido: ${(file.size / 1024 / 1024).toFixed(1)}MB → ${(compressedBlob.size / 1024 / 1024).toFixed(1)}MB`);
+
+        return new File([compressedBlob], 'video_comprimido.mp4', { type: 'video/mp4' });
+    }
+
+    // --- Upload simples para Cloudinary (arquivo já está abaixo de 95MB) ---
+    async function uploadToCloudinary(file) {
+        const resourceType = file.type.startsWith('video/') ? 'video' : 'image';
+        const uploadUrl = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}/upload`;
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+        let res;
+        try {
+            res = await fetch(uploadUrl, { method: 'POST', body: formData });
+        } catch (err) {
+            throw new Error('Falha de rede: ' + err.message);
+        }
+
+        const data = await res.json();
+        if (!res.ok || data.error) {
+            throw new Error('Cloudinary: ' + (data.error ? data.error.message : JSON.stringify(data)));
+        }
+
+        return data.secure_url;
     }
 
     function setProgress(percent, label) {
-        progressBar.style.width = percent + '%';
-        progressPercent.textContent = percent + '%';
+        progressBar.style.width = Math.min(percent, 100) + '%';
+        progressPercent.textContent = Math.min(percent, 100) + '%';
         if (label) progressLabel.textContent = label;
-    }
-
-    function generateUUID() {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-            const r = Math.random() * 16 | 0;
-            return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-        });
     }
 });
