@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Administração</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <a href="index.html" class="back-link">&larr; Voltar para o Site</a>
+            <h1>Nova Postagem</h1>
+        </header>
+
+        <form id="post-form" class="post-form">
+
+            <div class="form-group">
+                <label>Foto ou Vídeo</label>
+                <div class="file-upload" id="file-upload-area">
+                    <input type="file" id="media" accept="image/*,video/*" required>
+                    <div class="upload-placeholder">
+                        <span>📁 Clique para escolher foto ou vídeo</span>
+                        <small>Sem limite de tamanho — vídeos grandes são enviados em partes automaticamente</small>
+                    </div>
+                    <img id="media-preview" class="hidden" alt="Preview">
+                    <video id="video-preview" class="hidden" controls></video>
+                </div>
+
+                <!-- Barra de progresso -->
+                <div id="progress-container" class="hidden" style="margin-top:12px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                        <span id="progress-label" style="font-size:13px; color:#737373;">Processando...</span>
+                        <span id="progress-percent" style="font-size:13px; font-weight:600; color:#ff8c00;">0%</span>
+                    </div>
+                    <div style="background:#f0f0f0; border-radius:8px; height:10px; overflow:hidden;">
+                        <div id="progress-bar" style="height:100%; width:0%; background:#ff8c00; border-radius:8px; transition:width 0.3s ease;"></div>
+                    </div>
+                    <p id="compress-note" style="font-size:12px;color:#737373;margin-top:6px;display:none;">
+                        ⚙️ Comprimindo vídeo para otimizar o upload... Isso pode levar alguns minutos.
+                    </p>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="caption">Legenda (opcional)</label>
+                <textarea id="caption" rows="4" placeholder="Escreva algo..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="likes">Curtidas Iniciais</label>
+                <input type="number" id="likes" min="0" value="0">
+            </div>
+
+            <button type="submit" class="submit-btn" id="submit-btn">Publicar no Site</button>
+        </form>
+
+        <div id="success-message" class="hidden">
+            ✅ Postagem publicada com sucesso! Atualize o site para ver.
+        </div>
+    </div>
+
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html>
